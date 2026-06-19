@@ -1,804 +1,844 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0a0a">
-  <title>EYES</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
 
-  <style>
-    :root {
-      --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-serif: "Instrument Serif", Georgia, serif;
-      --font-mono: "DM Mono", ui-monospace, monospace;
-
-      --bg:        #0a0a0a;
-      --surface:   #111111;
-      --border:    #222222;
-      --border-hot:#333333;
-      --text:      #e8e8e8;
-      --text-dim:  #7f7f7f;
-      --text-faint:#555555;
-      --accent:    #ff4d00;
-      --accent-hot:#ff6a2f;
-      --accent-glow: rgba(255,77,0,0.15);
-      --good:      #00c853;
-      --good-dim:  rgba(0,200,83,0.12);
-      --info:      #4aa8ff;
-      --warn:      #ffaa00;
-      --danger:    #ff4d4d;
-
-      --r: 6px;
-      --touch: 52px;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html {
-      height: 100%;
-      font-family: var(--font-sans);
-      font-size: 15px;
-      color: var(--text);
-      background: var(--bg);
-      -webkit-text-size-adjust: none;
-    }
-
-    body {
-      min-height: 100%;
-      min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
-      gap: 0;
-      overflow: hidden;
-    }
-
-    /* ── VIEWFINDER ── */
-    #viewfinder {
-      position: relative;
-      width: 100%;
-      flex-shrink: 0;
-      background: #000;
-      aspect-ratio: 4/3;
-      overflow: hidden;
-    }
-
-    #viewfinder video,
-    #viewfinder canvas#preview-canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    #viewfinder canvas#preview-canvas {
-      display: none;
-    }
-
-    #viewfinder-border {
-      position: absolute;
-      inset: 0;
-      border: 2px solid transparent;
-      pointer-events: none;
-      transition: border-color 0.2s;
-      z-index: 2;
-    }
-
-    #viewfinder-border.live {
-      border-color: var(--accent);
-      animation: pulse-border 2s ease-in-out infinite;
-    }
-
-    #viewfinder-border.captured {
-      border-color: var(--good);
-    }
-
-    @keyframes pulse-border {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.4; }
-    }
-
-    #cam-status {
-      position: absolute;
-      top: 10px;
-      left: 12px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      z-index: 3;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    #cam-status.live { color: var(--accent); }
-    #cam-status.captured { color: var(--good); }
-
-    #session-badge {
-      position: absolute;
-      top: 10px;
-      right: 12px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-faint);
-      z-index: 3;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    #session-badge.active {
-      color: var(--good);
-    }
-
-    /* ── CAPTURE CONTROLS ── */
-    #capture-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      gap: 12px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    #mode-toggle {
-      display: flex;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-
-    .mode-btn {
-      padding: 8px 14px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--text-dim);
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .mode-btn.active {
-      background: var(--accent-glow);
-      color: var(--accent);
-    }
-
-    #capture-btn {
-      flex: 1;
-      height: var(--touch);
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r);
-      font-family: var(--font-sans);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.08s;
-      letter-spacing: 0.02em;
-    }
-
-    #capture-btn:active {
-      background: var(--accent-hot);
-      transform: scale(0.98);
-    }
-
-    #capture-btn:disabled {
-      background: var(--border-hot);
-      color: var(--text-faint);
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    #burst-indicator {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      flex-shrink: 0;
-      min-width: 40px;
-      text-align: right;
-    }
-
-    /* ── LOG PANEL ── */
-    #log-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: var(--surface);
-      overflow: hidden;
-      min-height: 0;
-    }
-
-    #log-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      flex-wrap: wrap;
-      row-gap: 6px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 3px 8px;
-    }
-
-    .badge-label { color: var(--text-faint); }
-    .badge-value { color: var(--text); }
-
-    .badge.narrator .badge-value { color: var(--accent); }
-
-    #passengers-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      flex: 1;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 3px 8px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
-    }
-
-    .chip.narrator-chip {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .chip-remove {
-      background: none;
-      border: none;
-      color: var(--text-faint);
-      cursor: pointer;
-      font-size: 13px;
-      padding: 0;
-      line-height: 1;
-    }
-
-    #log-entries {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .log-entry {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .log-author {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-faint);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .log-author.narrator-author { color: var(--accent); }
-    .log-author.system-author { color: var(--text-faint); font-style: italic; }
-
-    .log-content {
-      font-size: 14px;
-      color: var(--text);
-      line-height: 1.5;
-    }
-
-    .log-content.system-content {
-      color: var(--text-dim);
-      font-style: italic;
-      font-size: 13px;
-    }
-
-    .log-thumb {
-      margin-top: 4px;
-      width: 72px;
-      height: 54px;
-      object-fit: cover;
-      border-radius: 3px;
-      border: 1px solid var(--border);
-      display: block;
-    }
-
-    /* ── PROMPT PANEL (agent instructions) ── */
-    #prompt-panel {
-      border-top: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    #prompt-toggle {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: transparent;
-      border: none;
-      color: var(--text-dim);
-      font-family: var(--font-mono);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      cursor: pointer;
-    }
-
-    #prompt-content {
-      display: none;
-      padding: 0 14px 12px;
-    }
-
-    #prompt-content.open {
-      display: block;
-    }
-
-    #prompt-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 12px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.6;
-      white-space: pre-wrap;
-      max-height: 200px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      user-select: all;
-    }
-
-    /* ── JOIN MODAL ── */
-    #join-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      z-index: 100;
-      padding: 0;
-    }
-
-    #join-overlay.hidden { display: none; }
-
-    #join-sheet {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      border-radius: 16px 16px 0 0;
-      padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0));
-      width: 100%;
-      max-width: 480px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    #join-sheet h2 {
-      font-family: var(--font-serif);
-      font-size: 22px;
-      font-weight: 400;
-      color: var(--text);
-    }
-
-    #join-sheet p {
-      font-size: 14px;
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
-
-    #name-input {
-      width: 100%;
-      height: var(--touch);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      padding: 0 14px;
-      font-family: var(--font-sans);
-      font-size: 16px;
-      color: var(--text);
-      outline: none;
-    }
-
-    #name-input:focus {
-      border-color: var(--accent);
-    }
-
-    #join-btn {
-      width: 100%;
-      height: var(--touch);
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--r);
-      font-family: var(--font-sans);
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    #join-btn:active { background: var(--accent-hot); }
-
-    /* ── HIDDEN CANVAS FOR CAPTURE ── */
-    canvas#capture-canvas { display: none; }
-
-    /* ── SCROLLBAR ── */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border-hot); border-radius: 2px; }
-
-    @media (min-height: 700px) {
-      #viewfinder { aspect-ratio: 16/9; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- VIEWFINDER -->
-  <div id="viewfinder">
-    <video id="cam-video" autoplay playsinline muted></video>
-    <canvas id="preview-canvas"></canvas>
-    <div id="viewfinder-border"></div>
-    <span id="cam-status">No camera</span>
-    <span id="session-badge">No session</span>
-  </div>
-
-  <!-- CAPTURE CONTROLS -->
-  <div id="capture-bar">
-    <div id="mode-toggle">
-      <button class="mode-btn active" data-mode="single" onclick="setMode('single')">Single</button>
-      <button class="mode-btn" data-mode="burst" onclick="setMode('burst')">Burst</button>
-    </div>
-    <button id="capture-btn" disabled onclick="capture()">Join to capture</button>
-    <span id="burst-indicator"></span>
-  </div>
-
-  <!-- LOG PANEL -->
-  <div id="log-panel">
-    <div id="log-header">
-      <span class="badge narrator">
-        <span class="badge-label">Narrator</span>
-        <span class="badge-value" id="narrator-value">none</span>
-      </span>
-      <div id="passengers-list"></div>
-    </div>
-    <div id="log-entries">
-      <div class="log-entry">
-        <span class="log-author system-author">EYES</span>
-        <span class="log-content system-content">No session yet. Join to begin.</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- AGENT PROMPT -->
-  <div id="prompt-panel">
-    <button id="prompt-toggle" onclick="togglePrompt()">
-      <span>Agent instructions</span>
-      <span id="prompt-arrow">▾</span>
-    </button>
-    <div id="prompt-content">
-      <pre id="prompt-box">Loading...</pre>
-    </div>
-  </div>
-
-  <!-- JOIN MODAL -->
-  <div id="join-overlay">
-    <div id="join-sheet">
-      <h2>Join the session</h2>
-      <p>Enter your name to join as an observer. The person holding the phone shares what they see. Observers describe, interpret, and respond.</p>
-      <input id="name-input" type="text" placeholder="Your name" autocomplete="off" autocorrect="off">
-      <button id="join-btn" onclick="join()">Join</button>
-    </div>
-  </div>
-
-  <!-- HIDDEN CAPTURE CANVAS -->
-  <canvas id="capture-canvas"></canvas>
-
-  <script>
-    // ── CONFIG ──
-    const API_BASE = ''; // set to your server URL in production, e.g. 'https://eyes.blackcoffeeshoppe.com'
-    const BURST_FRAMES = 6;
-    const BURST_INTERVAL_MS = 667; // ~6 frames over 4 seconds
-
-    // ── STATE ──
-    let state = {
-      name: null,
-      sessionId: null,
-      narrator: null,
-      passengers: [],
-      log: [],
-      mode: 'single',
-      capturing: false,
-      streamActive: false,
-    };
-
-    // ── CAMERA SETUP ──
-    const video = document.getElementById('cam-video');
-    const previewCanvas = document.getElementById('preview-canvas');
-    const captureCanvas = document.getElementById('capture-canvas');
-    const vfBorder = document.getElementById('viewfinder-border');
-    const camStatus = document.getElementById('cam-status');
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
-          audio: false
-        });
-        video.srcObject = stream;
-        state.streamActive = true;
-        camStatus.textContent = 'Live';
-        camStatus.className = 'live';
-        vfBorder.className = 'live';
-      } catch (err) {
-        camStatus.textContent = 'Camera unavailable';
-        camStatus.className = '';
-        console.error('Camera error:', err);
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>EYES</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-serif: "Instrument Serif", Georgia, serif;
+        --font-mono: "DM Mono", ui-monospace, monospace;
+        --bg: #0a0a0a;
+        --surface: #111111;
+        --border: #222222;
+        --border-hot: #333333;
+        --text: #e8e8e8;
+        --text-dim: #7f7f7f;
+        --text-faint: #555555;
+        --accent: #ff4d00;
+        --accent-hot: #ff6a2f;
+        --accent-glow: rgba(255, 77, 0, 0.15);
+        --good: #00c853;
+        --good-dim: rgba(0, 200, 83, 0.12);
+        --info: #4aa8ff;
+        --warn: #ffaa00;
+        --danger: #ff4d4d;
+        --r: 6px;
+        --touch: 52px;
       }
-    }
 
-    // ── MODE TOGGLE ──
-    function setMode(mode) {
-      state.mode = mode;
-      document.querySelectorAll('.mode-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === mode);
-      });
-      document.getElementById('burst-indicator').textContent = mode === 'burst' ? `×${BURST_FRAMES}` : '';
-      updateCaptureBtn();
-    }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    // ── CAPTURE ──
-    function captureFrame() {
-      const ctx = captureCanvas.getContext('2d');
-      captureCanvas.width = video.videoWidth || 1280;
-      captureCanvas.height = video.videoHeight || 960;
-      ctx.drawImage(video, 0, 0);
-      return captureCanvas.toDataURL('image/jpeg', 0.85);
-    }
+      html {
+        height: 100%;
+        font-family: var(--font-sans);
+        font-size: 15px;
+        color: var(--text);
+        background: var(--bg);
+        -webkit-text-size-adjust: none;
+      }
 
-    async function capture() {
-      if (!state.name || !state.sessionId || state.capturing) return;
-      state.capturing = true;
-      updateCaptureBtn();
+      body {
+        min-height: 100%;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+        gap: 0;
+        /* overflow: hidden; */
+      }
 
-      vfBorder.className = 'captured';
-      camStatus.textContent = state.mode === 'burst' ? 'Capturing burst…' : 'Capturing…';
-      camStatus.className = 'captured';
+      /* ── VIEWFINDER ── */
+      #viewfinder {
+        position: relative;
+        width: 100%;
+        flex-shrink: 0;
+        background: #000;
+        aspect-ratio: 4/3;
+        overflow: hidden;
+      }
 
-      const frames = [];
+      #viewfinder video,
+      #viewfinder canvas#preview-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
 
-      if (state.mode === 'single') {
-        frames.push(captureFrame());
-      } else {
-        for (let i = 0; i < BURST_FRAMES; i++) {
-          frames.push(captureFrame());
-          if (i < BURST_FRAMES - 1) await sleep(BURST_INTERVAL_MS);
+      #viewfinder canvas#preview-canvas {
+        display: none;
+      }
+
+      #viewfinder-border {
+        position: absolute;
+        inset: 0;
+        border: 2px solid transparent;
+        pointer-events: none;
+        transition: border-color 0.2s;
+        z-index: 2;
+      }
+
+      #viewfinder-border.live {
+        border-color: var(--accent);
+        animation: pulse-border 2s ease-in-out infinite;
+      }
+
+      #viewfinder-border.captured {
+        border-color: var(--good);
+      }
+
+      @keyframes pulse-border {
+
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.4;
         }
       }
 
-      // Show thumbnail in log immediately
-      addLocalLog('capture', `Captured ${frames.length === 1 ? '1 frame' : frames.length + ' frames'}`, frames[0]);
+      #cam-status {
+        position: absolute;
+        top: 10px;
+        left: 12px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        z-index: 3;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
 
-      // Send to server
-      try {
-        await fetch(`${API_BASE}/api/capture`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: state.sessionId,
-            author: state.name,
-            frames,
-            mode: state.mode,
-          })
+      #cam-status.live {
+        color: var(--accent);
+      }
+
+      #cam-status.captured {
+        color: var(--good);
+      }
+
+      #session-badge {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-faint);
+        z-index: 3;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      #session-badge.active {
+        color: var(--good);
+      }
+
+      /* ── CAPTURE CONTROLS ── */
+      #capture-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        gap: 12px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      #mode-toggle {
+        display: flex;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .mode-btn {
+        padding: 8px 14px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-dim);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .mode-btn.active {
+        background: var(--accent-glow);
+        color: var(--accent);
+      }
+
+      #capture-btn {
+        flex: 1;
+        height: var(--touch);
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--r);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.08s;
+        letter-spacing: 0.02em;
+      }
+
+      #capture-btn:active {
+        background: var(--accent-hot);
+        transform: scale(0.98);
+      }
+
+      #capture-btn:disabled {
+        background: var(--border-hot);
+        color: var(--text-faint);
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      #burst-indicator {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        flex-shrink: 0;
+        min-width: 40px;
+        text-align: right;
+      }
+
+      /* ── LOG PANEL ── */
+      #log-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        overflow: hidden;
+        min-height: 0;
+      }
+
+      #log-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        row-gap: 6px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 3px 8px;
+      }
+
+      .badge-label {
+        color: var(--text-faint);
+      }
+
+      .badge-value {
+        color: var(--text);
+      }
+
+      .badge.narrator .badge-value {
+        color: var(--accent);
+      }
+
+      #passengers-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        flex: 1;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-dim);
+      }
+
+      .chip.narrator-chip {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .chip-remove {
+        background: none;
+        border: none;
+        color: var(--text-faint);
+        cursor: pointer;
+        font-size: 13px;
+        padding: 0;
+        line-height: 1;
+      }
+
+      #log-entries {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .log-entry {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .log-author {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-faint);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .log-author.narrator-author {
+        color: var(--accent);
+      }
+
+      .log-author.system-author {
+        color: var(--text-faint);
+        font-style: italic;
+      }
+
+      .log-content {
+        font-size: 14px;
+        color: var(--text);
+        line-height: 1.5;
+      }
+
+      .log-content.system-content {
+        color: var(--text-dim);
+        font-style: italic;
+        font-size: 13px;
+      }
+
+      .log-thumb {
+        margin-top: 4px;
+        width: 72px;
+        height: 54px;
+        object-fit: cover;
+        border-radius: 3px;
+        border: 1px solid var(--border);
+        display: block;
+      }
+
+      /* ── PROMPT PANEL (agent instructions) ── */
+      #prompt-panel {
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      #prompt-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        background: transparent;
+        border: none;
+        color: var(--text-dim);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+      }
+
+      #prompt-content {
+        display: none;
+        padding: 0 14px 12px;
+      }
+
+      #prompt-content.open {
+        display: block;
+      }
+
+      #prompt-box {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 12px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-dim);
+        line-height: 1.6;
+        white-space: pre-wrap;
+        max-height: 200px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        user-select: all;
+      }
+
+      /* ── JOIN MODAL ── */
+      #join-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        z-index: 100;
+        padding: 0;
+      }
+
+      #join-overlay.hidden {
+        display: none;
+      }
+
+      #join-sheet {
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        border-radius: 16px 16px 0 0;
+        padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0));
+        width: 100%;
+        max-width: 480px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      #join-sheet h2 {
+        font-family: var(--font-serif);
+        font-size: 22px;
+        font-weight: 400;
+        color: var(--text);
+      }
+
+      #join-sheet p {
+        font-size: 14px;
+        color: var(--text-dim);
+        line-height: 1.5;
+      }
+
+      #name-input {
+        width: 100%;
+        height: var(--touch);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 0 14px;
+        font-family: var(--font-sans);
+        font-size: 16px;
+        color: var(--text);
+        outline: none;
+      }
+
+      #name-input:focus {
+        border-color: var(--accent);
+      }
+
+      #join-btn {
+        width: 100%;
+        height: var(--touch);
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--r);
+        font-family: var(--font-sans);
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      #join-btn:active {
+        background: var(--accent-hot);
+      }
+
+      /* ── HIDDEN CANVAS FOR CAPTURE ── */
+      canvas#capture-canvas {
+        display: none;
+      }
+
+      /* ── SCROLLBAR ── */
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--border-hot);
+        border-radius: 2px;
+      }
+
+      @media (min-height: 700px) {
+        #viewfinder {
+          aspect-ratio: 16/9;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- VIEWFINDER -->
+    <div id="viewfinder">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <canvas id="preview-canvas"></canvas>
+      <div id="viewfinder-border"></div>
+      <span id="cam-status">No camera</span>
+      <span id="session-badge">No session</span>
+    </div>
+    <!-- CAPTURE CONTROLS -->
+    <div id="capture-bar">
+      <div id="mode-toggle">
+        <button class="mode-btn active" data-mode="single" onclick="setMode('single')">Single</button>
+        <button class="mode-btn" data-mode="burst" onclick="setMode('burst')">Burst</button>
+      </div>
+      <button id="capture-btn" disabled onclick="capture()">Join to capture</button>
+      <span id="burst-indicator"></span>
+    </div>
+    <!-- LOG PANEL -->
+    <div id="log-panel">
+      <div id="log-header">
+        <span class="badge narrator">
+          <span class="badge-label">Narrator</span>
+          <span class="badge-value" id="narrator-value">none</span>
+        </span>
+        <div id="passengers-list"></div>
+      </div>
+      <div id="log-entries">
+        <div class="log-entry">
+          <span class="log-author system-author">EYES</span>
+          <span class="log-content system-content">No session yet. Join to begin.</span>
+        </div>
+      </div>
+    </div>
+    <!-- AGENT PROMPT -->
+    <div id="prompt-panel">
+      <button id="prompt-toggle" onclick="togglePrompt()">
+        <span>Agent instructions</span>
+        <span id="prompt-arrow">▾</span>
+      </button>
+      <div id="prompt-content">
+        <pre id="prompt-box">Loading...</pre>
+      </div>
+    </div>
+    <!-- JOIN MODAL -->
+    <div id="join-overlay">
+      <div id="join-sheet">
+        <h2>Join the session</h2>
+        <p>Enter your name to join as an observer. The person holding the phone shares what they see. Observers describe, interpret, and respond.</p>
+        <input id="name-input" type="text" placeholder="Your name" autocomplete="off" autocorrect="off">
+        <button id="join-btn" onclick="join()">Join</button>
+      </div>
+    </div>
+    <!-- HIDDEN CAPTURE CANVAS -->
+    <canvas id="capture-canvas"></canvas>
+    <script>
+      // ── CONFIG ──
+      const API_BASE = ''; // set to your server URL in production, e.g. 'https://eyes.blackcoffeeshoppe.com'
+      const BURST_FRAMES = 6;
+      const BURST_INTERVAL_MS = 667; // ~6 frames over 4 seconds
+
+      // ── STATE ──
+      let state = {
+        name: null,
+        sessionId: null,
+        narrator: null,
+        passengers: [],
+        log: [],
+        mode: 'single',
+        capturing: false,
+        streamActive: false,
+      };
+
+      // ── CAMERA SETUP ──
+      const video = document.getElementById('cam-video');
+      const previewCanvas = document.getElementById('preview-canvas');
+      const captureCanvas = document.getElementById('capture-canvas');
+      const vfBorder = document.getElementById('viewfinder-border');
+      const camStatus = document.getElementById('cam-status');
+
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+            audio: false
+          });
+          video.srcObject = stream;
+          state.streamActive = true;
+          camStatus.textContent = 'Live';
+          camStatus.className = 'live';
+          vfBorder.className = 'live';
+        } catch (err) {
+          camStatus.textContent = 'Camera unavailable';
+          camStatus.className = '';
+          console.error('Camera error:', err);
+        }
+      }
+
+      // ── MODE TOGGLE ──
+      function setMode(mode) {
+        state.mode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.mode === mode);
         });
-      } catch (err) {
-        addLocalLog('system', 'Could not send frames to server.');
-      }
-
-      setTimeout(() => {
-        vfBorder.className = 'live';
-        camStatus.textContent = 'Live';
-        camStatus.className = 'live';
-        state.capturing = false;
+        document.getElementById('burst-indicator').textContent = mode === 'burst' ? `×${BURST_FRAMES}` : '';
         updateCaptureBtn();
-      }, 800);
-    }
+      }
 
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+      // ── CAPTURE ──
+      function captureFrame() {
+        const ctx = captureCanvas.getContext('2d');
+        captureCanvas.width = video.videoWidth || 1280;
+        captureCanvas.height = video.videoHeight || 960;
+        ctx.drawImage(video, 0, 0);
+        return captureCanvas.toDataURL('image/jpeg', 0.85);
+      }
 
-    // ── JOIN / LEAVE ──
-    async function join() {
-      const name = document.getElementById('name-input').value.trim();
-      if (!name) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/api/join`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name })
-        });
-        const data = await res.json();
-        state.name = name;
-        state.sessionId = data.session_id;
-        document.getElementById('join-overlay').classList.add('hidden');
+      async function capture() {
+        if (!state.name || !state.sessionId || state.capturing) return;
+        state.capturing = true;
         updateCaptureBtn();
-        updateSessionBadge();
-        startPolling();
-        addLocalLog('system', `${name} joined the session.`);
-      } catch (err) {
-        // If server not yet configured, run in demo mode
-        state.name = name;
-        state.sessionId = 'demo-' + Date.now();
-        document.getElementById('join-overlay').classList.add('hidden');
-        updateCaptureBtn();
-        updateSessionBadge();
-        addLocalLog('system', `${name} joined (demo mode — server not connected).`);
-      }
-    }
 
-    // ── UI UPDATES ──
-    function updateCaptureBtn() {
-      const btn = document.getElementById('capture-btn');
-      if (!state.name) {
-        btn.textContent = 'Join to capture';
-        btn.disabled = true;
-      } else if (state.capturing) {
-        btn.textContent = state.mode === 'burst' ? 'Capturing burst…' : 'Capturing…';
-        btn.disabled = true;
-      } else {
-        btn.textContent = state.mode === 'single' ? 'Capture' : 'Capture burst';
-        btn.disabled = !state.streamActive;
-      }
-    }
+        vfBorder.className = 'captured';
+        camStatus.textContent = state.mode === 'burst' ? 'Capturing burst…' : 'Capturing…';
+        camStatus.className = 'captured';
 
-    function updateSessionBadge() {
-      const badge = document.getElementById('session-badge');
-      if (state.sessionId) {
-        badge.textContent = state.name;
-        badge.className = 'active';
-      } else {
-        badge.textContent = 'No session';
-        badge.className = '';
-      }
-    }
+        const frames = [];
 
-    function addLocalLog(type, content, thumb) {
-      const entries = document.getElementById('log-entries');
-      const el = document.createElement('div');
-      el.className = 'log-entry';
+        if (state.mode === 'single') {
+          frames.push(captureFrame());
+        } else {
+          for (let i = 0; i < BURST_FRAMES; i++) {
+            frames.push(captureFrame());
+            if (i < BURST_FRAMES - 1) await sleep(BURST_INTERVAL_MS);
+          }
+        }
 
-      const authorEl = document.createElement('span');
-      authorEl.className = type === 'system' ? 'log-author system-author' : 'log-author';
-      authorEl.textContent = type === 'system' ? 'EYES' : (state.name || 'you');
-      if (type !== 'system' && state.name === state.narrator) authorEl.classList.add('narrator-author');
+        // Show thumbnail in log immediately
+        addLocalLog('capture', `Captured ${frames.length === 1 ? '1 frame' : frames.length + ' frames'}`, frames[0]);
 
-      const contentEl = document.createElement('span');
-      contentEl.className = type === 'system' ? 'log-content system-content' : 'log-content';
-      contentEl.textContent = content;
+        // Send to server
+        try {
+          await fetch(`${API_BASE}/api/capture`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: state.sessionId,
+              author: state.name,
+              frames,
+              mode: state.mode,
+            })
+          });
+        } catch (err) {
+          addLocalLog('system', 'Could not send frames to server.');
+        }
 
-      el.appendChild(authorEl);
-      el.appendChild(contentEl);
-
-      if (thumb) {
-        const img = document.createElement('img');
-        img.className = 'log-thumb';
-        img.src = thumb;
-        el.appendChild(img);
+        setTimeout(() => {
+          vfBorder.className = 'live';
+          camStatus.textContent = 'Live';
+          camStatus.className = 'live';
+          state.capturing = false;
+          updateCaptureBtn();
+        }, 800);
       }
 
-      entries.appendChild(el);
-      entries.scrollTop = entries.scrollHeight;
-    }
+      function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    function renderLog(entries) {
-      const container = document.getElementById('log-entries');
-      container.innerHTML = '';
-      entries.slice(-40).forEach(m => {
+      // ── JOIN / LEAVE ──
+      async function join() {
+        const name = document.getElementById('name-input').value.trim();
+        if (!name) return;
+
+        try {
+          const res = await fetch(`${API_BASE}/api/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+          });
+          const data = await res.json();
+          state.name = name;
+          state.sessionId = data.session_id;
+          document.getElementById('join-overlay').classList.add('hidden');
+          updateCaptureBtn();
+          updateSessionBadge();
+          startPolling();
+          addLocalLog('system', `${name} joined the session.`);
+        } catch (err) {
+          // If server not yet configured, run in demo mode
+          state.name = name;
+          state.sessionId = 'demo-' + Date.now();
+          document.getElementById('join-overlay').classList.add('hidden');
+          updateCaptureBtn();
+          updateSessionBadge();
+          addLocalLog('system', `${name} joined (demo mode — server not connected).`);
+        }
+      }
+
+      // ── UI UPDATES ──
+      function updateCaptureBtn() {
+        const btn = document.getElementById('capture-btn');
+        if (!state.name) {
+          btn.textContent = 'Join to capture';
+          btn.disabled = true;
+        } else if (state.capturing) {
+          btn.textContent = state.mode === 'burst' ? 'Capturing burst…' : 'Capturing…';
+          btn.disabled = true;
+        } else {
+          btn.textContent = state.mode === 'single' ? 'Capture' : 'Capture burst';
+          btn.disabled = !state.streamActive;
+        }
+      }
+
+      function updateSessionBadge() {
+        const badge = document.getElementById('session-badge');
+        if (state.sessionId) {
+          badge.textContent = state.name;
+          badge.className = 'active';
+        } else {
+          badge.textContent = 'No session';
+          badge.className = '';
+        }
+      }
+
+      function addLocalLog(type, content, thumb) {
+        const entries = document.getElementById('log-entries');
         const el = document.createElement('div');
         el.className = 'log-entry';
 
         const authorEl = document.createElement('span');
-        authorEl.className = 'log-author' + (m.author === state.narrator ? ' narrator-author' : '') + (m.type === 'system' ? ' system-author' : '');
-        authorEl.textContent = m.type === 'system' ? 'EYES' : m.author;
+        authorEl.className = type === 'system' ? 'log-author system-author' : 'log-author';
+        authorEl.textContent = type === 'system' ? 'EYES' : (state.name || 'you');
+        if (type !== 'system' && state.name === state.narrator) authorEl.classList.add('narrator-author');
 
         const contentEl = document.createElement('span');
-        contentEl.className = 'log-content' + (m.type === 'system' ? ' system-content' : '');
-        contentEl.textContent = m.content;
+        contentEl.className = type === 'system' ? 'log-content system-content' : 'log-content';
+        contentEl.textContent = content;
 
         el.appendChild(authorEl);
         el.appendChild(contentEl);
 
-        if (m.thumb) {
+        if (thumb) {
           const img = document.createElement('img');
           img.className = 'log-thumb';
-          img.src = m.thumb;
+          img.src = thumb;
           el.appendChild(img);
         }
 
-        container.appendChild(el);
-      });
-      container.scrollTop = container.scrollHeight;
-    }
-
-    function renderPassengers(passengers, narrator) {
-      const list = document.getElementById('passengers-list');
-      list.innerHTML = '';
-      passengers.forEach(p => {
-        const chip = document.createElement('span');
-        chip.className = 'chip' + (p === narrator ? ' narrator-chip' : '');
-        chip.textContent = p;
-        list.appendChild(chip);
-      });
-      document.getElementById('narrator-value').textContent = narrator || 'none';
-    }
-
-    // ── POLLING ──
-    let pollTimer = null;
-    function startPolling() {
-      if (pollTimer) return;
-      pollTimer = setInterval(poll, 2000);
-    }
-
-    async function poll() {
-      if (!state.sessionId) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/session/${state.sessionId}`);
-        const data = await res.json();
-        state.narrator = data.narrator;
-        state.passengers = data.passengers || [];
-        renderPassengers(state.passengers, state.narrator);
-        if (data.log) renderLog(data.log);
-      } catch (err) {
-        // Server not yet connected, stay in demo mode
+        entries.appendChild(el);
+        entries.scrollTop = entries.scrollHeight;
       }
-    }
 
-    // ── PROMPT PANEL ──
-    function togglePrompt() {
-      const content = document.getElementById('prompt-content');
-      const arrow = document.getElementById('prompt-arrow');
-      content.classList.toggle('open');
-      arrow.textContent = content.classList.contains('open') ? '▴' : '▾';
-    }
+      function renderLog(entries) {
+        const container = document.getElementById('log-entries');
+        container.innerHTML = '';
+        entries.slice(-40).forEach(m => {
+          const el = document.createElement('div');
+          el.className = 'log-entry';
 
-    function buildPrompt() {
-      const sessionUrl = window.location.href;
-      return `You are an observer in an EYES session.
+          const authorEl = document.createElement('span');
+          authorEl.className = 'log-author' + (m.author === state.narrator ? ' narrator-author' : '') + (m.type === 'system' ? ' system-author' : '');
+          authorEl.textContent = m.type === 'system' ? 'EYES' : m.author;
+
+          const contentEl = document.createElement('span');
+          contentEl.className = 'log-content' + (m.type === 'system' ? ' system-content' : '');
+          contentEl.textContent = m.content;
+
+          el.appendChild(authorEl);
+          el.appendChild(contentEl);
+
+          if (m.thumb) {
+            const img = document.createElement('img');
+            img.className = 'log-thumb';
+            img.src = m.thumb;
+            el.appendChild(img);
+          }
+
+          container.appendChild(el);
+        });
+        container.scrollTop = container.scrollHeight;
+      }
+
+      function renderPassengers(passengers, narrator) {
+        const list = document.getElementById('passengers-list');
+        list.innerHTML = '';
+        passengers.forEach(p => {
+          const chip = document.createElement('span');
+          chip.className = 'chip' + (p === narrator ? ' narrator-chip' : '');
+          chip.textContent = p;
+          list.appendChild(chip);
+        });
+        document.getElementById('narrator-value').textContent = narrator || 'none';
+      }
+
+      // ── POLLING ──
+      let pollTimer = null;
+      function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(poll, 2000);
+      }
+
+      async function poll() {
+        if (!state.sessionId) return;
+        try {
+          const res = await fetch(`${API_BASE}/api/session/${state.sessionId}`);
+          const data = await res.json();
+          state.narrator = data.narrator;
+          state.passengers = data.passengers || [];
+          renderPassengers(state.passengers, state.narrator);
+          if (data.log) renderLog(data.log);
+        } catch (err) {
+          // Server not yet connected, stay in demo mode
+        }
+      }
+
+      // ── PROMPT PANEL ──
+      function togglePrompt() {
+        const content = document.getElementById('prompt-content');
+        const arrow = document.getElementById('prompt-arrow');
+        content.classList.toggle('open');
+        arrow.textContent = content.classList.contains('open') ? '▴' : '▾';
+      }
+
+      function buildPrompt() {
+        const sessionUrl = window.location.href;
+        return `You are an observer in an EYES session.
 
 Someone is holding a phone and sharing what the camera sees. You receive frames — single images or bursts of motion — and your job is to describe, interpret, and respond honestly to what is actually there.
 
@@ -832,24 +872,25 @@ PRINCIPLES:
 - Earn the identification — shape and bearing first, label only when close enough.
 - A burst shows direction and movement. Read it as motion, not as six separate images.
 - Say something true. Silence is fine; noise is not.`;
-    }
+      }
 
-    // ── PROMPT TOGGLE ──
-    document.getElementById('name-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') join();
-    });
-
-    // ── PWA SERVICE WORKER ──
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
-        console.warn('SW registration failed:', err);
+      // ── PROMPT TOGGLE ──
+      document.getElementById('name-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') join();
       });
-    }
 
-    // ── INIT ──
-    startCamera();
-    document.getElementById('prompt-box').textContent = buildPrompt();
-    updateCaptureBtn();
-  </script>
-</body>
+      // ── PWA SERVICE WORKER ──
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.warn('SW registration failed:', err);
+        });
+      }
+
+      // ── INIT ──
+      startCamera();
+      document.getElementById('prompt-box').textContent = buildPrompt();
+      updateCaptureBtn();
+    </script>
+  </body>
+
 </html>
