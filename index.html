@@ -147,10 +147,50 @@
         z-index: 3;
         text-transform: uppercase;
         letter-spacing: 0.08em;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
       }
 
       #session-badge.active {
         color: var(--good);
+      }
+
+      #session-id-row {
+        display: none;
+        align-items: center;
+        gap: 6px;
+      }
+
+      #session-id-row.visible {
+        display: flex;
+      }
+
+      #session-id-text {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        letter-spacing: 0.04em;
+        text-transform: none;
+      }
+
+      #copy-session-btn {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 2px 6px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        cursor: pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      #copy-session-btn:active {
+        background: var(--accent-glow);
+        color: var(--accent);
       }
 
       /* ── CAPTURE CONTROLS ── */
@@ -521,7 +561,13 @@
       <canvas id="preview-canvas"></canvas>
       <div id="viewfinder-border"></div>
       <span id="cam-status">No camera</span>
-      <span id="session-badge">No session</span>
+      <span id="session-badge">
+      <span id="session-badge-name">No session</span>
+      <span id="session-id-row">
+        <span id="session-id-text"></span>
+        <button id="copy-session-btn" onclick="copySessionId()">Copy ID</button>
+      </span>
+    </span>
     </div>
     <!-- CAPTURE CONTROLS -->
     <div id="capture-bar">
@@ -686,6 +732,8 @@
         const name = document.getElementById('name-input').value.trim();
         if (!name) return;
 
+        localStorage.setItem('eyes_name', name);
+
         try {
           const res = await fetch(`${API_BASE}/api/join`, {
             method: 'POST',
@@ -728,13 +776,32 @@
 
       function updateSessionBadge() {
         const badge = document.getElementById('session-badge');
+        const badgeName = document.getElementById('session-badge-name');
+        const idRow = document.getElementById('session-id-row');
+        const idText = document.getElementById('session-id-text');
         if (state.sessionId) {
-          badge.textContent = state.name;
           badge.className = 'active';
+          badgeName.textContent = state.name;
+          idText.textContent = state.sessionId.slice(0, 8) + '…';
+          idRow.className = 'visible';
         } else {
-          badge.textContent = 'No session';
           badge.className = '';
+          badgeName.textContent = 'No session';
+          idRow.className = '';
         }
+      }
+
+      function copySessionId() {
+        if (!state.sessionId) return;
+        navigator.clipboard.writeText(state.sessionId).then(() => {
+          const btn = document.getElementById('copy-session-btn');
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy ID', 1500);
+        }).catch(() => {
+          const btn = document.getElementById('copy-session-btn');
+          btn.textContent = state.sessionId;
+          setTimeout(() => btn.textContent = 'Copy ID', 3000);
+        });
       }
 
       function addLocalLog(type, content, thumb) {
@@ -889,6 +956,12 @@ PRINCIPLES:
       // ── INIT ──
       startCamera();
       document.getElementById('prompt-box').textContent = buildPrompt();
+
+      // Pre-fill name from last session and auto-hide modal if name is known
+      const savedName = localStorage.getItem('eyes_name');
+      if (savedName) {
+        document.getElementById('name-input').value = savedName;
+      }
       updateCaptureBtn();
     </script>
   </body>
