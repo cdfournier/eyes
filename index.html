@@ -268,6 +268,42 @@
         text-align: right;
       }
 
+      /* ── SESSION ACTIONS ── */
+      #session-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 0 16px 12px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .utility-btn {
+        min-height: 42px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--text-dim);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        padding: 8px 10px;
+        text-transform: uppercase;
+      }
+
+      .utility-btn:active {
+        background: var(--accent-glow);
+        color: var(--accent);
+      }
+
+      .utility-btn:disabled {
+        color: var(--text-faint);
+        cursor: not-allowed;
+        opacity: 0.65;
+      }
+
       /* ── LOG PANEL ── */
       #log-panel {
         flex: 1;
@@ -405,9 +441,64 @@
         display: block;
       }
 
+      /* ── MESSAGE COMPOSER ── */
+      #message-composer {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0));
+        border-top: 1px solid var(--border);
+        background: var(--bg);
+        flex-shrink: 0;
+      }
+
+      #message-input {
+        min-height: 46px;
+        max-height: 120px;
+        resize: vertical;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--text);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        line-height: 1.4;
+        outline: none;
+        padding: 11px 12px;
+      }
+
+      #message-input:focus {
+        border-color: var(--accent);
+      }
+
+      #send-message-btn {
+        min-width: 78px;
+        height: 46px;
+        align-self: end;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: var(--r);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      #send-message-btn:active {
+        background: var(--accent-hot);
+      }
+
+      #send-message-btn:disabled {
+        background: var(--border-hot);
+        color: var(--text-faint);
+        cursor: not-allowed;
+      }
+
       /* ── PROMPT PANEL (agent instructions) ── */
       #prompt-panel {
-        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        background: var(--bg);
         flex-shrink: 0;
       }
 
@@ -609,6 +700,23 @@
       <button id="capture-btn" disabled onclick="capture()">Join to capture</button>
       <span id="burst-indicator"></span>
     </div>
+    <div id="session-actions">
+      <button id="quick-copy-prompt-btn" class="utility-btn" disabled onclick="copyAgentPrompt('quick-copy-prompt-btn')">Copy join prompt</button>
+      <button id="quick-copy-session-btn" class="utility-btn" disabled onclick="copySessionId('quick-copy-session-btn')">Copy session ID</button>
+    </div>
+    <!-- AGENT PROMPT -->
+    <div id="prompt-panel">
+      <button id="prompt-toggle" onclick="togglePrompt()">
+        <span>Agent instructions</span>
+        <span id="prompt-arrow">▾</span>
+      </button>
+      <div id="prompt-content">
+        <div id="prompt-actions">
+          <button id="copy-prompt-btn" onclick="copyAgentPrompt()">Copy prompt</button>
+        </div>
+        <pre id="prompt-box">Loading...</pre>
+      </div>
+    </div>
     <!-- LOG PANEL -->
     <div id="log-panel">
       <div id="log-header">
@@ -624,18 +732,9 @@
           <span class="log-content system-content">No session yet. Join to begin.</span>
         </div>
       </div>
-    </div>
-    <!-- AGENT PROMPT -->
-    <div id="prompt-panel">
-      <button id="prompt-toggle" onclick="togglePrompt()">
-        <span>Agent instructions</span>
-        <span id="prompt-arrow">▾</span>
-      </button>
-      <div id="prompt-content">
-        <div id="prompt-actions">
-          <button id="copy-prompt-btn" onclick="copyAgentPrompt()">Copy prompt</button>
-        </div>
-        <pre id="prompt-box">Loading...</pre>
+      <div id="message-composer">
+        <textarea id="message-input" placeholder="Message the session" disabled rows="1"></textarea>
+        <button id="send-message-btn" disabled onclick="sendMessage()">Send</button>
       </div>
     </div>
     <!-- JOIN MODAL -->
@@ -802,6 +901,11 @@
       // ── UI UPDATES ──
       function updateCaptureBtn() {
         const btn = document.getElementById('capture-btn');
+        const promptBtn = document.getElementById('quick-copy-prompt-btn');
+        const sessionBtn = document.getElementById('quick-copy-session-btn');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-message-btn');
+        const joined = Boolean(state.name && state.sessionId);
         if (!state.name) {
           btn.textContent = 'Join to capture';
           btn.disabled = true;
@@ -812,6 +916,10 @@
           btn.textContent = state.mode === 'single' ? 'Capture' : 'Capture burst';
           btn.disabled = !state.streamActive;
         }
+        promptBtn.disabled = !joined;
+        sessionBtn.disabled = !joined;
+        messageInput.disabled = !joined;
+        sendBtn.disabled = !joined || !messageInput.value.trim();
       }
 
       function updateSessionBadge() {
@@ -831,29 +939,31 @@
         }
       }
 
-      function copySessionId() {
+      function flashButton(btn, text, resetText, delay = 1500) {
+        if (!btn) return;
+        btn.textContent = text;
+        setTimeout(() => btn.textContent = resetText, delay);
+      }
+
+      function copySessionId(buttonId = 'copy-session-btn') {
         if (!state.sessionId) return;
+        const btn = document.getElementById(buttonId);
+        const resetText = buttonId === 'quick-copy-session-btn' ? 'Copy session ID' : 'Copy ID';
         navigator.clipboard.writeText(state.sessionId).then(() => {
-          const btn = document.getElementById('copy-session-btn');
-          btn.textContent = 'Copied!';
-          setTimeout(() => btn.textContent = 'Copy ID', 1500);
+          flashButton(btn, 'Copied', resetText);
         }).catch(() => {
-          const btn = document.getElementById('copy-session-btn');
-          btn.textContent = state.sessionId;
-          setTimeout(() => btn.textContent = 'Copy ID', 3000);
+          flashButton(btn, state.sessionId, resetText, 3000);
         });
       }
 
-      function copyAgentPrompt() {
+      function copyAgentPrompt(buttonId = 'copy-prompt-btn') {
         const prompt = buildPrompt();
+        const btn = document.getElementById(buttonId);
+        const resetText = buttonId === 'quick-copy-prompt-btn' ? 'Copy join prompt' : 'Copy prompt';
         navigator.clipboard.writeText(prompt).then(() => {
-          const btn = document.getElementById('copy-prompt-btn');
-          btn.textContent = 'Copied';
-          setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+          flashButton(btn, 'Copied', resetText);
         }).catch(() => {
-          const btn = document.getElementById('copy-prompt-btn');
-          btn.textContent = 'Copy failed';
-          setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+          flashButton(btn, 'Copy failed', resetText);
         });
       }
 
@@ -931,6 +1041,33 @@
         document.getElementById('narrator-value').textContent = narrator || 'none';
       }
 
+      async function sendMessage() {
+        const input = document.getElementById('message-input');
+        const content = input.value.trim();
+        if (!state.name || !state.sessionId || !content) return;
+
+        input.value = '';
+        updateCaptureBtn();
+        addLocalLog('observation', content);
+
+        try {
+          const res = await fetch(`${API_BASE}/api/observe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: state.sessionId,
+              author: state.name,
+              content,
+            })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Could not send message');
+          poll();
+        } catch (err) {
+          addLocalLog('system', 'Could not send message to server.');
+        }
+      }
+
       // ── POLLING ──
       let pollTimer = null;
       function startPolling() {
@@ -1004,6 +1141,18 @@ PRINCIPLES:
       // ── PROMPT TOGGLE ──
       document.getElementById('name-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') join();
+      });
+
+      document.getElementById('session-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') join();
+      });
+
+      document.getElementById('message-input').addEventListener('input', updateCaptureBtn);
+      document.getElementById('message-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
       });
 
       // ── PWA SERVICE WORKER ──
