@@ -436,6 +436,30 @@
         display: block;
       }
 
+      #prompt-actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      #copy-prompt-btn {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        color: var(--text-dim);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        padding: 7px 10px;
+        text-transform: uppercase;
+      }
+
+      #copy-prompt-btn:active {
+        background: var(--accent-glow);
+        color: var(--accent);
+      }
+
       #prompt-box {
         background: var(--bg);
         border: 1px solid var(--border);
@@ -493,7 +517,8 @@
         line-height: 1.5;
       }
 
-      #name-input {
+      #name-input,
+      #session-input {
         width: 100%;
         height: var(--touch);
         background: var(--bg);
@@ -506,7 +531,13 @@
         outline: none;
       }
 
-      #name-input:focus {
+      #session-input {
+        font-family: var(--font-mono);
+        font-size: 13px;
+      }
+
+      #name-input:focus,
+      #session-input:focus {
         border-color: var(--accent);
       }
 
@@ -601,6 +632,9 @@
         <span id="prompt-arrow">▾</span>
       </button>
       <div id="prompt-content">
+        <div id="prompt-actions">
+          <button id="copy-prompt-btn" onclick="copyAgentPrompt()">Copy prompt</button>
+        </div>
         <pre id="prompt-box">Loading...</pre>
       </div>
     </div>
@@ -610,6 +644,7 @@
         <h2>Join the session</h2>
         <p>Enter your name to join as an observer. The person holding the phone shares what they see. Observers describe, interpret, and respond.</p>
         <input id="name-input" type="text" placeholder="Your name" autocomplete="off" autocorrect="off">
+        <input id="session-input" type="text" placeholder="Session ID (optional)" autocomplete="off" autocorrect="off">
         <button id="join-btn" onclick="join()">Join</button>
       </div>
     </div>
@@ -730,6 +765,7 @@
       // ── JOIN / LEAVE ──
       async function join() {
         const name = document.getElementById('name-input').value.trim();
+        const sessionId = document.getElementById('session-input').value.trim();
         if (!name) return;
 
         localStorage.setItem('eyes_name', name);
@@ -738,15 +774,18 @@
           const res = await fetch(`${API_BASE}/api/join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify(sessionId ? { name, session_id: sessionId } : { name })
           });
           const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Could not join session');
           state.name = name;
           state.sessionId = data.session_id;
           document.getElementById('join-overlay').classList.add('hidden');
           updateCaptureBtn();
           updateSessionBadge();
+          refreshPrompt();
           startPolling();
+          poll();
           addLocalLog('system', `${name} joined the session.`);
         } catch (err) {
           // If server not yet configured, run in demo mode
@@ -755,6 +794,7 @@
           document.getElementById('join-overlay').classList.add('hidden');
           updateCaptureBtn();
           updateSessionBadge();
+          refreshPrompt();
           addLocalLog('system', `${name} joined (demo mode — server not connected).`);
         }
       }
@@ -802,6 +842,23 @@
           btn.textContent = state.sessionId;
           setTimeout(() => btn.textContent = 'Copy ID', 3000);
         });
+      }
+
+      function copyAgentPrompt() {
+        const prompt = buildPrompt();
+        navigator.clipboard.writeText(prompt).then(() => {
+          const btn = document.getElementById('copy-prompt-btn');
+          btn.textContent = 'Copied';
+          setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+        }).catch(() => {
+          const btn = document.getElementById('copy-prompt-btn');
+          btn.textContent = 'Copy failed';
+          setTimeout(() => btn.textContent = 'Copy prompt', 1500);
+        });
+      }
+
+      function refreshPrompt() {
+        document.getElementById('prompt-box').textContent = buildPrompt();
       }
 
       function addLocalLog(type, content, thumb) {
@@ -904,26 +961,29 @@
       }
 
       function buildPrompt() {
-        const sessionUrl = window.location.href;
+        const sessionId = state.sessionId || '<session_id>';
+        const joinBody = state.sessionId
+          ? `{"name": "YourName", "session_id": "${state.sessionId}"}`
+          : '{"name": "YourName", "session_id": "<session_id>"}';
         return `You are an observer in an EYES session.
 
 Someone is holding a phone and sharing what the camera sees. You receive frames — single images or bursts of motion — and your job is to describe, interpret, and respond honestly to what is actually there.
 
-HOW TO JOIN:
+HOW TO JOIN THIS SESSION:
   POST ${API_BASE}/api/join
-  Body: {"name": "YourName"}
+  Body: ${joinBody}
   Returns: {"session_id": "...", "passengers": [...]}
 
 HOW TO POST AN OBSERVATION:
   POST ${API_BASE}/api/observe
   Body: {
-    "session_id": "<session_id>",
+    "session_id": "${sessionId}",
     "author": "YourName",
     "content": "What you see or want to say"
   }
 
 HOW TO GET SESSION STATE (frames + log):
-  GET ${API_BASE}/api/session/<session_id>
+  GET ${API_BASE}/api/session/${sessionId}
   Returns: {"narrator": "...", "passengers": [...], "log": [...], "frames": [...]}
 
 FRAMES:
@@ -932,7 +992,7 @@ FRAMES:
 
 LEAVE:
   POST ${API_BASE}/api/leave
-  Body: {"session_id": "<session_id>", "name": "YourName"}
+  Body: {"session_id": "${sessionId}", "name": "YourName"}
 
 PRINCIPLES:
 - Describe what is actually there, not what you expect.
@@ -955,7 +1015,7 @@ PRINCIPLES:
 
       // ── INIT ──
       startCamera();
-      document.getElementById('prompt-box').textContent = buildPrompt();
+      refreshPrompt();
 
       // Pre-fill name from last session and auto-hide modal if name is known
       const savedName = localStorage.getItem('eyes_name');
