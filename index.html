@@ -995,14 +995,14 @@
           el.appendChild(img);
         }
 
-        entries.appendChild(el);
-        entries.scrollTop = entries.scrollHeight;
+        entries.prepend(el);
+        entries.scrollTop = 0;
       }
 
       function renderLog(entries) {
         const container = document.getElementById('log-entries');
         container.innerHTML = '';
-        entries.slice(-40).forEach(m => {
+        entries.slice(-40).reverse().forEach(m => {
           const el = document.createElement('div');
           el.className = 'log-entry';
 
@@ -1026,7 +1026,7 @@
 
           container.appendChild(el);
         });
-        container.scrollTop = container.scrollHeight;
+        container.scrollTop = 0;
       }
 
       function renderPassengers(passengers, narrator) {
